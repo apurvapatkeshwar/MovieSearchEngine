@@ -5,10 +5,11 @@ import java.io.Serializable;
 public class Actor implements Serializable {
 
 	private static final long serialVersionUID = 6230565559933563974L;
-	
+
 	private Integer _id;
 	private String _name;
 	private String _picture_url;
+	private String _wiki_url;
 
 	public Actor(Integer id) {
 		this._id = id;
@@ -42,5 +43,13 @@ public class Actor implements Serializable {
 
 	public void setPictureUrl(String pictureUrl) {
 		this._picture_url = pictureUrl;
+	}
+
+	public String getWikiUrl() {
+		return _wiki_url;
+	}
+
+	public void setWikiUrl(String wikiUrl) {
+		this._wiki_url = wikiUrl;
 	}
 }

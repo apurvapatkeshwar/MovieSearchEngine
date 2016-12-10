@@ -1,6 +1,8 @@
 package edu.nyu.cs.cs2580;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -8,9 +10,13 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStreamWriter;
 import java.io.Serializable;
+import java.io.UnsupportedEncodingException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map.Entry;
 
 import com.google.common.collect.BiMap;
@@ -58,9 +64,11 @@ public class IndexerMovie extends Indexer implements Serializable {
 
 		readActorCorpus();
 		readMovieCorpus();
+		buildActorToMoviesIndex();
+		buildActorToActorsIndex();
 
 		System.out.println("Indexed " + Integer.toString(_movieToMovieIDIndex.size()) + " movies with "
-				+ Integer.toString(_actorToActorsIndex.size()) + " actors.");
+				+ Integer.toString(_actorToActorIDIndex.size()) + " actors.");
 		String indexFile = _options._indexPrefix + "/corpus.idx";
 		System.out.println("Saving index to:\t" + indexFile);
 		ObjectOutputStream writer = new ObjectOutputStream(new FileOutputStream(indexFile));
@@ -68,33 +76,89 @@ public class IndexerMovie extends Indexer implements Serializable {
 		writer.close();
 	}
 
+	private void readActorCorpus() {
+		try (BufferedReader br = new BufferedReader(new FileReader(actorCorpusPath))) {
+			String line, params[];
+			Actor a;
+			Integer actorID = 0;
+			while ((line = br.readLine()) != null) {
+				params = line.split("\t");
+
+				_actorToActorIDIndex.put(params[0], actorID);
+				a = new Actor(actorID);
+				a.setName(params[0]);
+
+				String pictureUrl = params[1].equalsIgnoreCase("null") ? null : params[1];
+				a.setPictureUrl(pictureUrl);
+
+				String wikiUrl = params[2].equalsIgnoreCase("null") ? null : params[2];
+				a.setWikiUrl(wikiUrl);
+
+				_actorToDetailsIndex.put(actorID, a);
+				actorID++;
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.err.println(e.getMessage());
+		}
+	}
+
 	private void readMovieCorpus() {
 		try (BufferedReader br = new BufferedReader(new FileReader(movieCorpusPath))) {
 			String line, params[];
 			Movie m;
 			Integer movieID = 0;
+
 			while ((line = br.readLine()) != null) {
 				params = line.split("\t");
 
+				// Map the movie with its integer representation
 				_movieToMovieIDIndex.put(params[0], movieID);
 				m = new Movie(movieID);
 				String movieName = params[0] + " (" + params[1] + ")";
 				m.setName(movieName);
-				m.setRating(Double.parseDouble(params[2]));
-				m.setDirector(params[3]);
-				m.setPictureUrl(params[4]);
 
-				if ((line = br.readLine()) != null) {
-					params = line.split("\t");
-					m.setDescription(params[0]);
+				// Create the movie object and map it to the movie ID
+				String ratingStr = params[2].equalsIgnoreCase("null") ? null : params[2];
+				Double rating;
+				try {
+					rating = Double.parseDouble(ratingStr);
+				} catch (Exception e) {
+					System.out.println("Could not read rating for movie:\t" + movieName);
+					rating = null;
 				}
+				m.setRating(rating);
+
+				String director = params[3].equalsIgnoreCase("null") ? null : params[3];
+				m.setDirector(director);
+
+				String pictureUrl = params[4].equalsIgnoreCase("null") ? null : params[4];
+				m.setPictureUrl(pictureUrl);
+
+				String wikiUrl = params[5].equalsIgnoreCase("null") ? null : params[5];
+				m.setWikiUrl(wikiUrl);
 
 				if ((line = br.readLine()) != null) {
-					// TODO Set actors
 					params = line.split("\t");
+					String description = params[0].equalsIgnoreCase("null") ? null : params[0];
+					m.setDescription(description);
 				}
 
 				_movieToDetailsIndex.put(movieID, m);
+
+				// Get actor IDs and map them to the movie ID
+				if ((line = br.readLine()) != null) {
+					params = line.split("\t");
+					ArrayList<Integer> actorIDs = new ArrayList<Integer>();
+					for (String actor : params) {
+						if (_actorToActorIDIndex.containsKey(actor)) {
+							Integer actorID = _actorToActorIDIndex.get(actor);
+							actorIDs.add(actorID);
+						}
+					}
+					_movieToActorsIndex.put(movieID, actorIDs);
+				}
+
 				movieID++;
 			}
 		} catch (Exception e) {
@@ -103,8 +167,68 @@ public class IndexerMovie extends Indexer implements Serializable {
 		}
 	}
 
-	private void readActorCorpus() {
-		// TODO Auto-generated method stub
+	// private void writeActorsCorpus(HashSet<String> actors) {
+	// try {
+	// File fout = new File(_options._corpusPrefix + "\\actors.txt");
+	// FileOutputStream fos;
+	//
+	// fos = new FileOutputStream(fout);
+	//
+	// BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(fos));
+	// int i = 0;
+	// for (String actor : actors) {
+	// String op = actor + "\thttps://en.wikipedia.org/img/Pic_of_Actor" + i
+	// + "\thttps://en.wikipedia.org/wiki/Actor_" + i;
+	//
+	// bw.write(op);
+	// bw.newLine();
+	// i++;
+	// }
+	// bw.close();
+	// } catch (Exception e) {
+	// e.printStackTrace();
+	// }
+	// }
+
+	private void buildActorToMoviesIndex() {
+		for (Entry<Integer, ArrayList<Integer>> e : _movieToActorsIndex.entrySet()) {
+			Integer movieID = e.getKey();
+			ArrayList<Integer> actorIDs = e.getValue();
+			ArrayList<Integer> movieList;
+			for (Integer actorID : actorIDs) {
+				if (_actorToMoviesIndex.containsKey(actorID)) {
+					movieList = _actorToMoviesIndex.get(actorID);
+				} else {
+					movieList = new ArrayList<Integer>();
+				}
+				movieList.add(movieID);
+				_actorToMoviesIndex.put(actorID, movieList);
+			}
+		}
+	}
+
+	private void buildActorToActorsIndex() {
+		for (Entry<Integer, ArrayList<Integer>> e : _actorToMoviesIndex.entrySet()) {
+			Integer actorID = e.getKey();
+			ArrayList<Integer> movieIDs = e.getValue();
+			ArrayList<Integer> actorList;
+			HashSet<Integer> actorSet = new HashSet<Integer>();
+
+			for (Integer movieID : movieIDs) {
+				if (_movieToActorsIndex.containsKey(movieID)) {
+					actorList = _movieToActorsIndex.get(movieID);
+					for (Integer actor : actorList) {
+						actorSet.add(actor);
+					}
+				}
+			}
+
+			// removing the current actor from co-actor set
+			actorSet.remove(actorID);
+
+			actorList = new ArrayList<Integer>(actorSet);
+			_actorToMoviesIndex.put(actorID, actorList);
+		}
 	}
 
 	@Override
@@ -128,8 +252,11 @@ public class IndexerMovie extends Indexer implements Serializable {
 		loaded = null;
 		System.out.println(Integer.toString(_movieToMovieIDIndex.size()) + " movies loaded with "
 				+ Integer.toString(_actorToActorsIndex.size()) + " actors.");
-		
-		// for(Entry<String, Integer> e: _movieToMovieIDIndex.entrySet()) {
+
+		// for (Entry<String, Integer> e : _movieToMovieIDIndex.entrySet()) {
+		// System.out.println(e.getKey() + "\t" + e.getValue());
+		// }
+		// for (Entry<String, Integer> e : _actorToActorIDIndex.entrySet()) {
 		// System.out.println(e.getKey() + "\t" + e.getValue());
 		// }
 	}

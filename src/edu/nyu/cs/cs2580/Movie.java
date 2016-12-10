@@ -12,18 +12,21 @@ public class Movie implements Serializable {
 	private Double _rating;
 	private String _director;
 	private String _picture_url;
+	private String _wiki_url;
 
 	public Movie(Integer id) {
 		this._id = id;
 	}
 
-	public Movie(Integer id, String name, String description, Double rating, String director, String pictureUrl) {
+	public Movie(Integer id, String name, String description, Double rating, String director, String pictureUrl,
+			String wikiUrl) {
 		this._id = id;
 		this._name = name;
 		this._description = description;
 		this._rating = rating;
 		this._director = director;
 		this._picture_url = pictureUrl;
+		this._wiki_url = wikiUrl;
 	}
 
 	public Integer getId() {
@@ -72,6 +75,14 @@ public class Movie implements Serializable {
 
 	public void setPictureUrl(String pictureUrl) {
 		this._picture_url = pictureUrl;
+	}
+
+	public String getWikiUrl() {
+		return _wiki_url;
+	}
+
+	public void setWikiUrl(String wikiUrl) {
+		this._wiki_url = wikiUrl;
 	}
 
 	public String getYear() {

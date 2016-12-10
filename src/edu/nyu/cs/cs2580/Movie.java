@@ -1,0 +1,84 @@
+package edu.nyu.cs.cs2580;
+
+import java.io.Serializable;
+
+public class Movie implements Serializable {
+
+	private static final long serialVersionUID = -6632244441411231281L;
+
+	private Integer _id;
+	private String _name;
+	private String _description;
+	private Double _rating;
+	private String _director;
+	private String _picture_url;
+
+	public Movie(Integer id) {
+		this._id = id;
+	}
+
+	public Movie(Integer id, String name, String description, Double rating, String director, String pictureUrl) {
+		this._id = id;
+		this._name = name;
+		this._description = description;
+		this._rating = rating;
+		this._director = director;
+		this._picture_url = pictureUrl;
+	}
+
+	public Integer getId() {
+		return _id;
+	}
+
+	public void setId(Integer id) {
+		this._id = id;
+	}
+
+	public String getName() {
+		return _name;
+	}
+
+	public void setName(String name) {
+		this._name = name;
+	}
+
+	public String getDescription() {
+		return _description;
+	}
+
+	public void setDescription(String description) {
+		this._description = description;
+	}
+
+	public Double getRating() {
+		return _rating;
+	}
+
+	public void setRating(Double rating) {
+		this._rating = rating;
+	}
+
+	public String getDirector() {
+		return _director;
+	}
+
+	public void setDirector(String director) {
+		this._director = director;
+	}
+
+	public String getPictureUrl() {
+		return _picture_url;
+	}
+
+	public void setPictureUrl(String pictureUrl) {
+		this._picture_url = pictureUrl;
+	}
+
+	public String getYear() {
+		int nameSize = _name.length();
+		if (nameSize < 5) {
+			return null;
+		}
+		return _name.substring(nameSize - 5, nameSize - 1);
+	}
+}

@@ -29,6 +29,19 @@ public class Movie implements Serializable {
 		this._wiki_url = wikiUrl;
 	}
 
+	@Override
+	public String toString() {
+		StringBuilder output = new StringBuilder();
+		output.append("Movie ID:\t" + this._id + "\n");
+		output.append("Movie name:\t" + this._name + "\n");
+		output.append("Movie description:\t" + this._description + "\n");
+		output.append("Movie rating:\t" + this._rating + "\n");
+		output.append("Movie director:\t" + this._director + "\n");
+		output.append("Movie picture url:\t" + this._picture_url + "\n");
+		output.append("Movie wiki url:\t" + this._wiki_url + "\n");
+		return output.toString();
+	}
+
 	public Integer getId() {
 		return _id;
 	}

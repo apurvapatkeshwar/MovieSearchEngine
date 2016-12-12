@@ -26,9 +26,9 @@ public class Actor implements Serializable {
 	public String toString() {
 		StringBuilder output = new StringBuilder();
 		output.append("Actor ID:\t" + this._id + "\n");
-		output.append("Actor name:\t" + this._name + "\n");
-		output.append("Actor picture url:\t" + this._picture_url + "\n");
-		output.append("Actor wiki url:\t" + this._wiki_url + "\n");
+		output.append("Name:\t" + this._name + "\n");
+		output.append("Picture url:\t" + this._picture_url + "\n");
+		output.append("Wiki url:\t" + this._wiki_url + "\n");
 		return output.toString();
 	}
 

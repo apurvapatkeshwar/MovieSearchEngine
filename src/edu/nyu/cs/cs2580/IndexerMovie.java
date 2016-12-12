@@ -15,6 +15,7 @@ import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,7 +57,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 	public IndexerMovie(Options options) {
 		super(options);
 		actorCorpusPath = options._corpusPrefix + "\\actorlist.txt";
-		movieCorpusPath = options._corpusPrefix + "\\movielist.txt";
+		movieCorpusPath = options._corpusPrefix + "\\imdbmovielinks_new.txt";
 		System.out.println("Using Indexer: " + this.getClass().getSimpleName());
 	}
 
@@ -121,23 +122,40 @@ public class IndexerMovie extends Indexer implements Serializable {
 				m.setName(movieName);
 
 				// Create the movie object and map it to the movie ID
-				String ratingStr = params[2].equalsIgnoreCase("null") ? null : params[2];
+				String genreList = params[2].equalsIgnoreCase("null") ? null : params[2];
+				ArrayList<String> genres;
+				try {
+					genres = new ArrayList<String>(Arrays.asList(genreList.split("\\s*,\\s*")));
+				} catch (Exception e) {
+					genres = null;
+				}
+				m.setGenres(genres);
+
+				String ratingStr = params[3].equalsIgnoreCase("null") ? null : params[3];
 				Double rating;
 				try {
 					rating = Double.parseDouble(ratingStr);
 				} catch (Exception e) {
-					System.out.println("Could not read rating for movie:\t" + movieName);
 					rating = null;
 				}
 				m.setRating(rating);
 
-				String director = params[3].equalsIgnoreCase("null") ? null : params[3];
+				String ratingsCountStr = params[4].equalsIgnoreCase("null") ? null : params[4];
+				Integer ratingsCount;
+				try {
+					ratingsCount = Integer.parseInt(ratingsCountStr);
+				} catch (Exception e) {
+					ratingsCount = null;
+				}
+				m.setRatingsCount(ratingsCount);
+
+				String director = params[5].equalsIgnoreCase("null") ? null : params[5];
 				m.setDirector(director);
 
-				String pictureUrl = params[4].equalsIgnoreCase("null") ? null : params[4];
+				String pictureUrl = params[6].equalsIgnoreCase("null") ? null : params[6];
 				m.setPictureUrl(pictureUrl);
 
-				String wikiUrl = params[5].equalsIgnoreCase("null") ? null : params[5];
+				String wikiUrl = params[7].equalsIgnoreCase("null") ? null : params[7];
 				m.setWikiUrl(wikiUrl);
 
 				if ((line = br.readLine()) != null) {

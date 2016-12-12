@@ -1,6 +1,7 @@
 package edu.nyu.cs.cs2580;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 
 public class Movie implements Serializable {
 
@@ -8,8 +9,10 @@ public class Movie implements Serializable {
 
 	private Integer _id;
 	private String _name;
+	private ArrayList<String> _genres;
 	private String _description;
 	private Double _rating;
+	private Integer _ratings_count;
 	private String _director;
 	private String _picture_url;
 	private String _wiki_url;
@@ -18,12 +21,14 @@ public class Movie implements Serializable {
 		this._id = id;
 	}
 
-	public Movie(Integer id, String name, String description, Double rating, String director, String pictureUrl,
-			String wikiUrl) {
+	public Movie(Integer id, String name, ArrayList<String> genres, String description, Double rating,
+			Integer ratingsCount, String director, String pictureUrl, String wikiUrl) {
 		this._id = id;
 		this._name = name;
+		this._genres = genres;
 		this._description = description;
 		this._rating = rating;
+		this._ratings_count = ratingsCount;
 		this._director = director;
 		this._picture_url = pictureUrl;
 		this._wiki_url = wikiUrl;
@@ -33,12 +38,13 @@ public class Movie implements Serializable {
 	public String toString() {
 		StringBuilder output = new StringBuilder();
 		output.append("Movie ID:\t" + this._id + "\n");
-		output.append("Movie name:\t" + this._name + "\n");
-		output.append("Movie description:\t" + this._description + "\n");
-		output.append("Movie rating:\t" + this._rating + "\n");
-		output.append("Movie director:\t" + this._director + "\n");
-		output.append("Movie picture url:\t" + this._picture_url + "\n");
-		output.append("Movie wiki url:\t" + this._wiki_url + "\n");
+		output.append("Name:\t" + this._name + "\n");
+		output.append("Genres:\t" + this._genres + "\n");
+		output.append("Description:\t" + this._description + "\n");
+		output.append("Rating:\t" + this._rating + " / " + this._ratings_count + " reviews\n");
+		output.append("Director:\t" + this._director + "\n");
+		output.append("Picture url:\t" + this._picture_url + "\n");
+		output.append("Wiki url:\t" + this._wiki_url + "\n");
 		return output.toString();
 	}
 
@@ -58,6 +64,14 @@ public class Movie implements Serializable {
 		this._name = name;
 	}
 
+	public ArrayList<String> getGenres() {
+		return _genres;
+	}
+
+	public void setGenres(ArrayList<String> genres) {
+		this._genres = genres;
+	}
+
 	public String getDescription() {
 		return _description;
 	}
@@ -72,6 +86,14 @@ public class Movie implements Serializable {
 
 	public void setRating(Double rating) {
 		this._rating = rating;
+	}
+
+	public Integer getRatingsCount() {
+		return _ratings_count;
+	}
+
+	public void setRatingsCount(Integer ratingsCount) {
+		this._ratings_count = ratingsCount;
 	}
 
 	public String getDirector() {

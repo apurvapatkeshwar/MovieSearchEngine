@@ -17,10 +17,17 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.PriorityQueue;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.Stack;
+
+import org.apache.commons.lang3.StringUtils;
+
+import java.util.AbstractMap.SimpleEntry;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -30,6 +37,9 @@ import edu.nyu.cs.cs2580.SearchEngine.Options;
 public class IndexerMovie extends Indexer implements Serializable {
 
 	private static final long serialVersionUID = -8305500004730261917L;
+
+	private static Double betaJ = 0.8;
+	private static Double betaL = 0.2;
 
 	// Maps movie names to their integer representation
 	private BiMap<String, Integer> _movieToMovieIDIndex = HashBiMap.create();
@@ -57,8 +67,8 @@ public class IndexerMovie extends Indexer implements Serializable {
 
 	public IndexerMovie(Options options) {
 		super(options);
-		actorCorpusPath = options._corpusPrefix + "\\actors2.txt";
-		movieCorpusPath = options._corpusPrefix + "\\imdbmovielinks_new.txt";
+		actorCorpusPath = options._corpusPrefix + "\\actorlinks.txt";
+		movieCorpusPath = options._corpusPrefix + "\\movielinks.txt";
 		System.out.println("Using Indexer: " + this.getClass().getSimpleName());
 	}
 
@@ -122,12 +132,20 @@ public class IndexerMovie extends Indexer implements Serializable {
 				params = line.split("\t");
 
 				// Map the movie with its integer representation
-				_movieToMovieIDIndex.put(params[0], movieID);
-				m = new Movie(movieID);
 				String movieName = params[0] + " (" + params[1] + ")";
-				m.setName(movieName);
+				if (_movieToMovieIDIndex.containsKey(movieName) || _movieToMovieIDIndex.containsValue(movieID)) {
+					// Skip two lines and continue to the next movie
+					line = br.readLine();
+					line = br.readLine();
+					continue;
+				}
+				_movieToMovieIDIndex.put(movieName, movieID);
 
 				// Create the movie object and map it to the movie ID
+				m = new Movie(movieID);
+
+				m.setName(movieName);
+
 				String genreList = params[2].equalsIgnoreCase("null") ? null : params[2];
 				ArrayList<String> genres;
 				try {
@@ -221,6 +239,12 @@ public class IndexerMovie extends Indexer implements Serializable {
 	}
 
 	private void buildActorToMoviesIndex() {
+
+		// Initialize a blank movie list for each actor
+		for (Integer actorID : _actorToActorIDIndex.values()) {
+			_actorToMoviesIndex.put(actorID, new ArrayList<Integer>());
+		}
+
 		for (Entry<Integer, ArrayList<Integer>> e : _movieToActorsIndex.entrySet()) {
 			Integer movieID = e.getKey();
 			ArrayList<Integer> actorIDs = e.getValue();
@@ -305,6 +329,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 	}
 
 	private void printIndexStats() {
+		System.out.println();
 		System.out.println("_movieToMovieIDIndex size:\t" + this._movieToMovieIDIndex.size());
 		System.out.println("_actorToActorIDIndex size:\t" + this._actorToActorIDIndex.size());
 		System.out.println("_movieToActorsIndex size:\t" + this._movieToActorsIndex.size());
@@ -312,6 +337,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 		System.out.println("_actorToActorsIndex size:\t" + this._actorToActorsIndex.size());
 		System.out.println("_movieToDetailsIndex size:\t" + this._movieToDetailsIndex.size());
 		System.out.println("_actorToDetailsIndex size:\t" + this._actorToDetailsIndex.size());
+		System.out.println();
 	}
 
 	private void runTests() {
@@ -323,6 +349,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 			actorNames.add(_actorToActorIDIndex.inverse().get(r.nextInt(_actorToActorIDIndex.size())));
 		}
 		testAPIs(movieNames, actorNames);
+		getTopMatchesTest();
 	}
 
 	private void testAPIs(ArrayList<String> movieNames, ArrayList<String> actorNames) {
@@ -355,7 +382,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 		actorsList.addAll(actors);
 
 		// Test 2
-		System.out.println("\n\n");
+		System.out.println("\n");
 		Integer actorID = getActorIdByName(actorName);
 		System.out.println("Actor ID for " + actorName + " is:\t" + actorID);
 		System.out.println("Actor Name for " + actorID + " is:\t" + getActorNameById(actorID));
@@ -386,7 +413,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 		}
 		System.out.println("\n");
 
-		Integer times = r.nextInt(actorsList.size());
+		Integer times = r.nextInt(1 + actorsList.size() / 5);
 		for (int i = 0; i < times; i++) {
 			actorsList.remove(r.nextInt(actorsList.size()));
 		}
@@ -584,8 +611,145 @@ public class IndexerMovie extends Indexer implements Serializable {
 		}
 		return null;
 	}
-	
-	
+
+	/**
+	 * Gets the top matches by similarity for the given query.
+	 * 
+	 * @param query
+	 *            The actor or movie name
+	 * @param maxResults
+	 *            The maximum number of results required
+	 * @param threshold
+	 *            The minimum similarity threshold
+	 * @param type
+	 *            Movie or Actor
+	 * @return Array list of entries containing Actor/Movie ID and similarity
+	 *         score
+	 */
+	public ArrayList<Entry<Integer, Double>> getTopMatches(String query, Integer maxResults, Double threshold,
+			String type) {
+		BiMap<String, Integer> entityMap;
+		if (type.equalsIgnoreCase("movie")) {
+			entityMap = _movieToMovieIDIndex;
+		} else {
+			entityMap = _actorToActorIDIndex;
+		}
+
+		// trim excess space and convert to lower case for comparison
+		query = query.trim().toLowerCase();
+
+		// initialize the results queue with appropriate comparator
+		CompareWordsByScore comp = new CompareWordsByScore();
+		PriorityQueue<Entry<String, Double>> queue = new PriorityQueue<Entry<String, Double>>(comp);
+
+		Double score, totalScore;
+		Entry<String, Double> e;
+		for (Entry<String, Integer> i : entityMap.entrySet()) {
+			String currentEntity = i.getKey();
+			String[] queryNames = query.split("\\s+");
+			String[] currentEntityNames = currentEntity.split("\\s+");
+			score = 0.0;
+			totalScore = 0.0;
+			for (String qName : queryNames) {
+				score = 0.0;
+				for (String eName : currentEntityNames) {
+					Double temp = getSimilarity(eName, qName);
+					if (temp > score) {
+						score = temp;
+					}
+				}
+				totalScore += score;
+			}
+			totalScore /= queryNames.length;
+
+			if (totalScore > threshold) {
+				e = new SimpleEntry<String, Double>(i.getKey(), totalScore);
+				queue.add(e);
+				if (queue.size() > maxResults) {
+					queue.poll();
+				}
+			}
+		}
+		ArrayList<Entry<Integer, Double>> topResults = reverseAndConvertQueue(queue, type);
+		return topResults;
+	}
+
+	private ArrayList<Entry<Integer, Double>> reverseAndConvertQueue(PriorityQueue<Entry<String, Double>> q,
+			String type) {
+		Stack<Entry<Integer, Double>> s = new Stack<Entry<Integer, Double>>();
+		Entry<String, Double> e;
+		Entry<Integer, Double> f;
+		while ((e = q.poll()) != null) {
+			if (type.equalsIgnoreCase("movie")) {
+				f = new SimpleEntry<Integer, Double>(getMovieIdByName(e.getKey()), e.getValue());
+			} else {
+				f = new SimpleEntry<Integer, Double>(getActorIdByName(e.getKey()), e.getValue());
+			}
+			s.push(f);
+		}
+
+		ArrayList<Entry<Integer, Double>> output = new ArrayList<Entry<Integer, Double>>(s.size());
+		while (!s.isEmpty()) {
+			output.add(s.pop());
+		}
+		return output;
+	}
+
+	/**
+	 * Returns the similarity score for the given 2 terms.
+	 * 
+	 * @param term1
+	 *            The first term
+	 * @param term2
+	 *            The second term
+	 * @return The similarity score
+	 */
+	public double getSimilarity(String term1, String term2) {
+		term1 = term1.trim().toLowerCase();
+		term2 = term2.trim().toLowerCase();
+		if (term1.equals(term2)) {
+			return 1.0;
+		}
+
+		double jScore = StringUtils.getJaroWinklerDistance(term1, term2);
+		double lDist = StringUtils.getLevenshteinDistance(term1, term2);
+		double base = term1.length() > term2.length() ? term1.length() : term2.length();
+		double lScore = (base - lDist) / base;
+
+		// System.out.println("Jaro Winkler score:\t" + jScore);
+		// System.out.println("Levenshtein score:\t" + lScore);
+
+		return betaJ * jScore + betaL * lScore;
+	}
+
+	private void getTopMatchesTest() {
+		Random r = new Random();
+		System.out.println();
+
+		// Test 1
+		String actor = _actorToActorIDIndex.inverse().get(r.nextInt(_actorToActorIDIndex.size()));
+		Integer maxResults = 5 + r.nextInt(6);
+		Double threshold = 0.4 + r.nextDouble() / 2;
+		ArrayList<Entry<Integer, Double>> result = getTopMatches(actor, maxResults, threshold, "actor");
+		System.out.println(
+				"The top " + maxResults + " matches with a threshold of " + threshold + " for " + actor + " are:");
+		for (Entry<Integer, Double> e : result) {
+			System.out.println(String.format("%.10f", e.getValue()) + "\t" + getActorNameById(e.getKey()));
+		}
+		System.out.println();
+
+		// Test 2
+		String movie = _movieToMovieIDIndex.inverse().get(r.nextInt(_movieToMovieIDIndex.size()));
+		maxResults = 5 + r.nextInt(6);
+		threshold = 0.4 + r.nextDouble() / 2;
+		result = getTopMatches(movie, maxResults, threshold, "movie");
+		System.out.println(
+				"The top " + maxResults + " matches with a threshold of " + threshold + " for " + movie + " are:");
+		for (Entry<Integer, Double> e : result) {
+			System.out.println(String.format("%.10f", e.getValue()) + "\t" + getMovieNameById(e.getKey()));
+		}
+		System.out.println();
+	}
 
 	@Override
 	public Document getDoc(int docid) {
@@ -615,5 +779,17 @@ public class IndexerMovie extends Indexer implements Serializable {
 	public int documentTermFrequency(String term, int docid) {
 		// TODO Auto-generated method stub
 		return 0;
+	}
+}
+
+class CompareWordsByScore implements Comparator<Entry<String, Double>> {
+
+	@Override
+	public int compare(Entry<String, Double> o1, Entry<String, Double> o2) {
+		int result = o1.getValue().compareTo(o2.getValue());
+		if (result == 0) {
+			return -1 * o1.getKey().compareTo(o2.getKey());
+		}
+		return result;
 	}
 }

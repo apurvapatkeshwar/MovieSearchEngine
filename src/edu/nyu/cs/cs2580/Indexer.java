@@ -1,6 +1,9 @@
 package edu.nyu.cs.cs2580;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map.Entry;
 
 import edu.nyu.cs.cs2580.SearchEngine.Options;
 
@@ -134,6 +137,18 @@ public abstract class Indexer {
 	// *** @CS2580: Note the function signature change from url to docid. ***
 	public abstract int documentTermFrequency(String term, int docid);
 
+	public abstract Integer getMovieIdByName(String movieName);
+	public abstract Integer getActorIdByName(String actorName);
+	public abstract String getMovieNameById(Integer movieId);
+	public abstract String getActorNameById(Integer actorId);
+	public abstract ArrayList<Integer> getMoviesByActors(ArrayList<Integer> actors);
+	public abstract ArrayList<Entry<Integer, Double>> getTopMatches(String query, Integer maxResults, Double threshold,String type);
+	public abstract ArrayList<Integer> getActorsByMovieName(String movieName);
+	public abstract ArrayList<Integer> getActorsByMovieID(Integer movieID);
+	public abstract Movie getMovieDetails(Integer movieID);
+	public abstract Actor getActorDetails(Integer actorID);
+	public abstract HashMap<Integer, Integer> getActorsWhoWorkedWith(String actorName);
+	//public abstract HashMap<Integer, Integer> getActorsWhoWorkedWith(Integer actorID);
 	/**
 	 * All Indexers must be created through this factory class based on the
 	 * provided {@code options}.

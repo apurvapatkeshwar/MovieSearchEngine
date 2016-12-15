@@ -22,18 +22,6 @@ public class SearchEngine {
     
     // The specific Indexer to be used.
     public String _indexerType = null;
-    
-    // The name of movie corpus file.
-    public String _movieCorpus = null;
-    
-    // The name of actor corpus file.
-    public String _actorCorpus = null;
-    
-    // The parameter to be used in Ranker.
-    private static final String[] BETA_PARAMS={
-    		"beta_rat", "beta_yr", "beta_numrev"
-    };
-    public Map<String, Float> _betaValues;
 
     public Options(String optionsFile) throws IOException {
       // Read options from the file.
@@ -63,34 +51,11 @@ public class SearchEngine {
       // Populate specific options.
       _indexerType = options.get("indexer_type");
       Check(_indexerType != null, "Missing option: indexer_type!");
-      
-      _movieCorpus = options.get("movie_corpus");
-      Check(_movieCorpus != null, "Missing option: movie_corpus!");
-      _actorCorpus = options.get("actor_corpus");
-      Check(_actorCorpus != null, "Missing option: actor_corpus!");
-      
-      // Populate specific parameter for ranker
-      _betaValues = new HashMap<String, Float>();
-      for(String s: BETA_PARAMS){
-    	  _betaValues.put(s, Float.parseFloat(options.get(s)));
-      }
     }
   }
   
   public static Options OPTIONS = null;
-  
-  public Indexer indexer;
-  
-  public SearchEngine() throws ClassNotFoundException, IOException{
-	  //OPTIONS = new Options(System.getProperty("user.dir")+"conf/engine.conf");
-	  
-	  if(indexer == null){
-		  indexer = Indexer.Factory.getIndexerByOption(SearchEngine.OPTIONS);
-		  Check(indexer != null, "Indexer " + SearchEngine.OPTIONS._indexerType + " not found!");	  
-	  }
-	  indexer.loadIndex();
-  }
-  
+
   /**
    * Prints {@code msg} and exits the program if {@code condition} is false.
    */
@@ -100,5 +65,103 @@ public class SearchEngine {
       System.exit(-1);
     }
   }
+
+  /**
+   * Running mode of the search engine.
+   */
+  public static enum Mode {
+    NONE,
+    INDEX,
+    SERVE,
+  };
   
+  public static Mode MODE = Mode.NONE;
+
+  public static int PORT = -1;
+
+  /*private static void parseCommandLine(String[] args) throws IOException, NumberFormatException {
+    for (String arg : args) {
+      String[] vals = arg.split("=", 2);
+      String key = vals[0].trim();
+      String value = vals[1].trim();
+      if (key.equals("--mode") || key.equals("-mode")) {
+        try {
+          MODE = Mode.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+          // Ignored, error msg will be printed below.
+        }
+      } else if (key.equals("--port") || key.equals("-port")) {
+        PORT = Integer.parseInt(value);
+      } else if (key.equals("--options") || key.equals("-options")) {
+        OPTIONS = new Options(value);
+      }
+    }
+    Check(MODE == Mode.SERVE || MODE == Mode.INDEX,
+        "Must provide a valid mode: serve or index!");
+    Check(MODE != Mode.SERVE || PORT != -1,
+        "Must provide a valid port number (258XX) in serve mode!");
+    Check(OPTIONS != null, "Must provide options!");
+  }
+  
+  ///// Main functionalities start
+  private static void startIndexing() throws IOException {
+    Indexer indexer = Indexer.Factory.getIndexerByOption(SearchEngine.OPTIONS);
+    Check(indexer != null,
+        "Indexer " + SearchEngine.OPTIONS._indexerType + " not found!");
+    indexer.constructIndex();
+  }
+  
+  private static void startServing() throws IOException, ClassNotFoundException {
+    // Create the handler and its associated indexer.
+    Indexer indexer = Indexer.Factory.getIndexerByOption(SearchEngine.OPTIONS);
+    Check(indexer != null,
+        "Indexer " + SearchEngine.OPTIONS._indexerType + " not found!");
+    indexer.loadIndex();
+    QueryHandler handler = new QueryHandler(SearchEngine.OPTIONS, indexer);
+
+    // Establish the serving environment
+    InetSocketAddress addr = new InetSocketAddress(SearchEngine.PORT);
+    HttpServer server = HttpServer.create(addr, -1);
+    server.createContext("/", handler);
+    server.setExecutor(Executors.newCachedThreadPool());
+    server.start();
+    System.out.println(
+        "Listening on port: " + Integer.toString(SearchEngine.PORT));
+  }
+  */
+  
+  public Indexer indexer;
+  
+  public SearchEngine() throws ClassNotFoundException, IOException{
+	  OPTIONS = new Options("/Users/jinfanyang/Desktop/Project/Project/conf/engine.conf");
+	  if(indexer == null){
+		  indexer = Indexer.Factory.getIndexerByOption(SearchEngine.OPTIONS);
+		  Check(indexer != null, "Indexer " + SearchEngine.OPTIONS._indexerType + " not found!");
+		  File indexfile = new File(SearchEngine.OPTIONS._indexPrefix + "/corpus.idx");
+		  if(indexfile.exists()){
+			  indexer.loadIndex();
+		  }
+		  else{
+			  indexer.constructIndex();
+		  }  
+	  }
+  }
+  
+  /*public static void main(String[] args) {
+    try {
+      SearchEngine.parseCommandLine(args);
+      switch (SearchEngine.MODE) {
+      case INDEX:
+        startIndexing();
+        break;
+      case SERVE:
+        startServing();
+        break;
+      default:
+        Check(false, "Wrong mode for SearchEngine!");
+      }
+    } catch (Exception e) {
+      System.err.println(e.getMessage());
+    }
+  }*/
 }

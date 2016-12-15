@@ -1,4 +1,4 @@
-package edu.nyu.cs.cs2580;
+package project;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -17,7 +17,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import edu.nyu.cs.cs2580.SearchEngine.Options;
+import project.SearchEngine.Options;
 
 public class MovieURLextractor {
 	protected Options _options = null;
@@ -36,7 +36,7 @@ public class MovieURLextractor {
 	
 	public static void main(String[] args) throws IOException, InterruptedException{
 		String corpusFile = corpusPrefix+"/Category-Lists_of_American_films_by_year.htm";		//add in conf option
-	    String output1 = corpusPrefix+"/listofurls.txt", output2 = corpusPrefix+"/lmv.txt", output3 = corpusPrefix+"/imdbmovielinks.txt", output4 = corpusPrefix+"/actorlist.txt";  //add in options folder
+	    String output1 = corpusPrefix+"/listofurls.txt", output2 = corpusPrefix+"/lmv.txt", output3 = corpusPrefix+"/imdbmovielinks1.txt", output4 = corpusPrefix+"/actorlist.txt";  //add in options folder
 	    
 	      //extract urls of the lists with movies
 	      extractURL(corpusFile, output1);
@@ -46,11 +46,13 @@ public class MovieURLextractor {
 	      extractIMDB(output2, output3);
 	      removeDUP(output3);
 	      //find pics for unique actors
-	      extractPICS(output3.replace(".txt", "-NODUP.txt"), output4);//72000
+	      extractPICS(output3.replace("1.txt", ".txt"), output4);//72000
 	}
 	
+	
+	
 	private static void extractPICS(String corpusFile, String output) throws IOException, InterruptedException{
-		int i=0;
+		//int i=0;
 		writer = new PrintWriter(new BufferedWriter(new FileWriter(output, true)));
 		File fileDir = new File(corpusFile);
         BufferedReader bfr = new BufferedReader(new InputStreamReader(new FileInputStream(fileDir), "UTF-8"));
@@ -66,8 +68,8 @@ public class MovieURLextractor {
         ActorsSet.remove("");
         ActorsSet.remove(null);
         
-		for (String actor : ActorsSet) {
-			i++;
+        for (String actor : ActorsSet) {
+			//i++;
         	try{//Check 1st way
 			urlwiki="https://en.wikipedia.org/wiki/"+actor.replace(" ", "_");
         	docwiki = Jsoup.connect(URI.create(urlwiki).toASCIIString()).timeout(10000).get();
@@ -82,8 +84,8 @@ public class MovieURLextractor {
 				}
         	}
 			catch(Exception e){//check if disambig page
-				details=docwiki.select("table#disambigbox > tbody > tr > td.mbox-text > a:nth-child(1)");
 				try{
+					details=docwiki.select("table#disambigbox > tbody > tr > td.mbox-text > a:nth-child(1)");
 					if (details.first().text().equals("disambiguation")){
 					try{//check disambig url
     					urlwiki=urlwiki+"_(actor)";
@@ -122,7 +124,7 @@ public class MovieURLextractor {
 				}
 				}
         	writer.println(actor+"\t"+picurl+"\t"+urlwiki);
-        	System.out.println(i);
+        	//System.out.println(i);
         	Thread.sleep(100);
          }
       	}catch(Exception e){
@@ -133,6 +135,38 @@ public class MovieURLextractor {
         bfr.close();
 	    writer.close();
 }
+	
+	private static void removeDUP(String corpusFile) throws IOException{
+		writer = new PrintWriter(new BufferedWriter(new FileWriter(corpusFile.replace("1.txt", ".txt"))));
+		String line2,line3;
+		HashSet<String> MoviesList = new HashSet<String>();
+		String[] movList;
+		File fileDir = new File(corpusFile);
+        BufferedReader bfr = new BufferedReader(new InputStreamReader(new FileInputStream(fileDir), "UTF-8"));
+        try{
+        while((line =bfr.readLine())!= null){
+        	movList=line.split("\t");
+        	if (!MoviesList.contains(movList[0]+movList[1])){
+        	MoviesList.add(movList[0]+movList[1]);
+        	line2=bfr.readLine();
+        	line3=bfr.readLine();
+        	writer.println(line);
+        	writer.println(line2);
+        	writer.println(line3);
+        	}else{
+        		line2=bfr.readLine();
+            	line3=bfr.readLine();
+        	}
+        }
+        }
+        catch(Exception e){
+        	writer.close();
+        	bfr.close();
+        }
+        writer.close();
+        bfr.close();
+	}
+	
 	private static void extractIMDB(String corpusFile, String output) throws IOException, InterruptedException{
 		writer = new PrintWriter(new BufferedWriter(new FileWriter(output, true)));
 		File fileDir = new File(corpusFile);
@@ -243,7 +277,6 @@ public class MovieURLextractor {
 				details=docimdb.select("#main > div > div > div.lister-list > div:nth-child(1) > div.lister-item-content > p:nth-child(4) > a:nth-child(1)");
 				director=details.first().text();
 			}catch(Exception e1){
-				
 				director="null";
 			}
 		}
@@ -269,6 +302,7 @@ public class MovieURLextractor {
 			userrev="0";
 		}
 	}
+	
 	private static void printMovie() {
 		writer.println(title+"\t"+year+"\t"+genre+"\t"+rating+"\t"+userrev+"\t"+director+"\t"+picurl+"\t"+urlwiki);
 		writer.println(descr);
@@ -277,6 +311,7 @@ public class MovieURLextractor {
 		}
 		writer.println();
 	}
+	
 	private static void getCast(Elements details) {
 		actorList = new String[details.size()];
 		int i=0;
@@ -292,68 +327,41 @@ public class MovieURLextractor {
 		String castUrl="http://www.imdb.com/title/"+x+"/fullcredits?ref_=tt_cl_sm";
 		return castUrl;
 	}
-	
-	private static void removeDUP(String corpusFile) throws IOException{
-		writer = new PrintWriter(new BufferedWriter(new FileWriter(corpusFile.replace(".txt", "-NODUP.txt"))));
-		String line2,line3;
-		HashSet<String> MoviesList = new HashSet<String>();
-		String[] movList;
-		File fileDir = new File(corpusFile);
-        BufferedReader bfr = new BufferedReader(new InputStreamReader(new FileInputStream(fileDir), "UTF-8"));
-        try{
-        while((line =bfr.readLine())!= null){
-        	movList=line.split("\t");
-        	if (!MoviesList.contains(movList[0]+movList[1])){
-        	MoviesList.add(movList[0]+movList[1]);
-        	line2=bfr.readLine();
-        	line3=bfr.readLine();
-        	writer.println(line);
-        	writer.println(line2);
-        	writer.println(line3);
-        	}else{
-        		line2=bfr.readLine();
-            	line3=bfr.readLine();
-        	}
-        }
-        }
-        catch(Exception e){
-        	writer.close();
-        	bfr.close();
-        }
-        writer.close();
-        bfr.close();
-	}
 
 	private static void extractMoviesN(String corpusFile, String output) throws IOException, InterruptedException{
-		writer = new PrintWriter(new BufferedWriter(new FileWriter(output)));
+		writer = new PrintWriter(new BufferedWriter(new FileWriter(output, true)));
 		File fileDir = new File(corpusFile);
         BufferedReader bfr = new BufferedReader(new InputStreamReader(new FileInputStream(fileDir), "UTF-8"));
 		Document doc;
 		boolean inList=false;
 		String url,year;
 		while((url = bfr.readLine()) != null) {
-		doc = Jsoup.connect(url).timeout(10000).get();
-		year = url.substring(url.length() - 4);
-		Elements links = doc.select("#mw-content-text > table.wikitable> tbody > tr > td:nth-child(1) > i > a");
-		for(Element elem : links){
-			writer.println(elem.text().replace("\"","")+"@"+year+"@"+elem.attr("href"));
-		}
-       Thread.sleep(500); //delay not to overload wiki
-    } 
-		bfr.close();
+			doc = Jsoup.connect(url).timeout(10000).get();
+			year = url.substring(url.length() - 4);
+			Elements links = doc.select("#mw-content-text > table.wikitable> tbody > tr > td:nth-child(1) > i > a");
+			for(Element elem : links){
+				writer.println(elem.text().replace("\"","")+"@"+year+"@"+elem.attr("href"));
+			}
+			Thread.sleep(1000); //delay not to overload wiki
+		}   
+        bfr.close();
 		writer.close();
-
 	}
-	
-	
+
 	private static void extractURL(String corpusFile, String output) throws IOException{
 		File cfile= new File(corpusFile);
 		PrintWriter writer = new PrintWriter(output, "UTF-8");
 		String urlPrefix= "https://en.wikipedia.org";
+		//StringBuilder output = new StringBuilder();
         Document dochtml = Jsoup.parse(cfile, "UTF-8", "");
-        Elements links = dochtml.select("li > a");
+        Elements links = dochtml.select("li > a");//("span#Pages_in_category, h2, li > a");//dochtml.select("span.mw-headline, li > a");
+        //Elements listlinks;
+        //boolean inList = false;
         for(Element elem : links){
-        	        if (elem.text().startsWith("List of American films of 19") | elem.text().startsWith("List of American films of 20") ) {        	            
+        	        if (elem.text().startsWith("List of American films of 19") | elem.text().startsWith("List of American films of 20") ) {
+        	        	//System.out.println(elem.text());
+        	        	//System.out.println(elem.attr("href")+"\n");
+        	            //output.append(urlPrefix+elem.attr("href")+"\n");
         	        	writer.println(urlPrefix+elem.attr("href"));
         	        }
                 }

@@ -1,12 +1,12 @@
-package edu.nyu.cs.cs2580;
+package project;
 
 import java.io.Serializable;
 import java.util.ArrayList;
 
-public class Movie extends Document implements Serializable {
-
+public class Movie implements Serializable{
 	private static final long serialVersionUID = -6632244441411231281L;
 
+	private int _movieid;
 	private String _name;
 	private ArrayList<String> _genres;
 	private String _description;
@@ -17,12 +17,12 @@ public class Movie extends Document implements Serializable {
 	private String _wiki_url;
 
 	public Movie(int id) {
-		super(id);
+		_movieid = id;
 	}
 
 	public Movie(Integer id, String name, ArrayList<String> genres, String description, Double rating,
 			Integer ratingsCount, String director, String pictureUrl, String wikiUrl) {
-		super(id);
+		this._movieid = id;
 		this._name = name;
 		this._genres = genres;
 		this._description = description;
@@ -36,7 +36,7 @@ public class Movie extends Document implements Serializable {
 	@Override
 	public String toString() {
 		StringBuilder output = new StringBuilder();
-		output.append("Movie ID:\t" + this._docid + "\n");
+		output.append("Movie ID:\t" + this._movieid + "\n");
 		output.append("Name:\t" + this._name + "\n");
 		output.append("Genres:\t" + this._genres + "\n");
 		output.append("Description:\t" + this._description + "\n");
@@ -48,11 +48,11 @@ public class Movie extends Document implements Serializable {
 	}
 
 	public Integer getId() {
-		return _docid;
+		return _movieid;
 	}
 
 	public void setId(Integer id) {
-		this._docid = id;
+		this._movieid = id;
 	}
 
 	public String getName() {

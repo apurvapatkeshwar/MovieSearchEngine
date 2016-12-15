@@ -1,4 +1,4 @@
-package edu.nyu.cs.cs2580;
+package project;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -20,9 +20,11 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.Set;
 import java.util.Stack;
 
 import org.apache.commons.lang3.StringUtils;
@@ -32,12 +34,11 @@ import java.util.AbstractMap.SimpleEntry;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
-import edu.nyu.cs.cs2580.SearchEngine.Options;
+import project.SearchEngine.Options;
 
 public class IndexerMovie extends Indexer implements Serializable {
-
 	private static final long serialVersionUID = -8305500004730261917L;
-
+	
 	private static Double betaJ = 0.8;
 	private static Double betaL = 0.2;
 
@@ -55,7 +56,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 
 	// Maps an actor ID to the map of [actor ID, number of times] who he/she has
 	// worked with
-	private HashMap<Integer, HashMap<Integer, Integer>> _actorToActorsIndex = new HashMap<Integer, HashMap<Integer, Integer>>();
+	//private HashMap<Integer, Set<Integer>> _actorToActorsIndex = new HashMap<Integer, Set<Integer>>();
 
 	// Maps a movie ID to a movie object that contains details about the movie
 	private HashMap<Integer, Movie> _movieToDetailsIndex = new HashMap<Integer, Movie>();
@@ -67,8 +68,8 @@ public class IndexerMovie extends Indexer implements Serializable {
 
 	public IndexerMovie(Options options) {
 		super(options);
-		actorCorpusPath = options._corpusPrefix + "\\actorlinks.txt";
-		movieCorpusPath = options._corpusPrefix + "\\movielinks.txt";
+		actorCorpusPath = options._corpusPrefix + options._actorCorpus;
+		movieCorpusPath = options._corpusPrefix + options._movieCorpus;
 		System.out.println("Using Indexer: " + this.getClass().getSimpleName());
 	}
 
@@ -79,12 +80,13 @@ public class IndexerMovie extends Indexer implements Serializable {
 		readActorCorpus();
 		readMovieCorpus();
 		buildActorToMoviesIndex();
-		buildActorToActorsIndex();
+		//buildActorToActorsIndex();
 		removeNullEntries();
-
+		
 		printIndexStats();
-		runTests();
-
+		
+		//runTests();
+		
 		System.out.println("Indexed " + Integer.toString(_movieToMovieIDIndex.size()) + " movies with "
 				+ Integer.toString(_actorToActorIDIndex.size()) + " actors.");
 		String indexFile = _options._indexPrefix + "/corpus.idx";
@@ -94,6 +96,34 @@ public class IndexerMovie extends Indexer implements Serializable {
 		writer.close();
 	}
 
+	@Override
+	public void loadIndex() throws IOException, ClassNotFoundException {
+		String indexFile = _options._indexPrefix + "/corpus.idx";
+		System.out.println("Load index from: " + indexFile);
+
+		// read from the index file
+		ObjectInputStream reader = new ObjectInputStream(new FileInputStream(indexFile));
+		IndexerMovie loaded = (IndexerMovie) reader.readObject();
+
+		this._movieToMovieIDIndex = loaded._movieToMovieIDIndex;
+		this._actorToActorIDIndex = loaded._actorToActorIDIndex;
+		this._movieToActorsIndex = loaded._movieToActorsIndex;
+		this._actorToMoviesIndex = loaded._actorToMoviesIndex;
+		//this._actorToActorsIndex = loaded._actorToActorsIndex;
+		this._movieToDetailsIndex = loaded._movieToDetailsIndex;
+		this._actorToDetailsIndex = loaded._actorToDetailsIndex;
+
+		reader.close();
+		loaded = null;
+		System.out.println(Integer.toString(_movieToMovieIDIndex.size()) + " movies loaded with "
+				+ Integer.toString(_actorToActorIDIndex.size()) + " actors.");
+
+		printIndexStats();
+		
+		//runTests();
+	}
+	
+	
 	private void readActorCorpus() {
 		try (BufferedReader br = new BufferedReader(new FileReader(actorCorpusPath))) {
 			String line, params[];
@@ -123,63 +153,62 @@ public class IndexerMovie extends Indexer implements Serializable {
 
 	private void readMovieCorpus() {
 		try (BufferedReader br = new BufferedReader(new FileReader(movieCorpusPath))) {
-			String line, params[];
+			String line;
+			String movieName;
+			String genreList;
+			String params[];
 			Movie m;
-			Integer movieID = 0;
-			// HashSet<String> actors = new HashSet<String>();
+			int movieID = 0;
+			String ratingStr;
+			double rating;
+			String ratingsCountStr;
+			int ratingsCount;
+			String director;
+			String pictureUrl;
+			String wikiUrl;
+			ArrayList<Integer> actorIDs = new ArrayList<Integer>();
+			ArrayList<String> genres = new ArrayList<String>();
 
 			while ((line = br.readLine()) != null) {
 				params = line.split("\t");
 
 				// Map the movie with its integer representation
-				String movieName = params[0] + " (" + params[1] + ")";
-				if (_movieToMovieIDIndex.containsKey(movieName) || _movieToMovieIDIndex.containsValue(movieID)) {
-					// Skip two lines and continue to the next movie
-					line = br.readLine();
-					line = br.readLine();
-					continue;
-				}
-				_movieToMovieIDIndex.put(movieName, movieID);
-
-				// Create the movie object and map it to the movie ID
+				_movieToMovieIDIndex.put(params[0], movieID);
 				m = new Movie(movieID);
-
+				movieName = params[0] + " (" + params[1] + ")";
 				m.setName(movieName);
 
-				String genreList = params[2].equalsIgnoreCase("null") ? null : params[2];
-				ArrayList<String> genres;
-				try {
-					genres = new ArrayList<String>(Arrays.asList(genreList.split("\\s*,\\s*")));
-				} catch (Exception e) {
-					genres = null;
+				// Create the movie object and map it to the movie ID
+				genreList = params[2].equalsIgnoreCase("null") ? null : params[2];
+				if(genreList != null){
+					genres = new ArrayList<String>();
+					genres.addAll(Arrays.asList(genreList.split("\\s*,\\s*")));
 				}
 				m.setGenres(genres);
 
-				String ratingStr = params[3].equalsIgnoreCase("null") ? null : params[3];
-				Double rating;
+				ratingStr = params[3].equalsIgnoreCase("null") ? null : params[3];
 				try {
 					rating = Double.parseDouble(ratingStr);
 				} catch (Exception e) {
-					rating = null;
+					rating = 0.0;
 				}
 				m.setRating(rating);
 
-				String ratingsCountStr = params[4].equalsIgnoreCase("null") ? null : params[4];
-				Integer ratingsCount;
+				ratingsCountStr = params[4].equalsIgnoreCase("null") ? null : params[4];
 				try {
-					ratingsCount = Integer.parseInt(ratingsCountStr);
+					ratingsCount = Integer.parseInt(ratingsCountStr.replace(",", ""));
 				} catch (Exception e) {
-					ratingsCount = null;
+					ratingsCount = 0;
 				}
 				m.setRatingsCount(ratingsCount);
 
-				String director = params[5].equalsIgnoreCase("null") ? null : params[5];
+				director = params[5].equalsIgnoreCase("null") ? null : params[5];
 				m.setDirector(director);
 
-				String pictureUrl = params[6].equalsIgnoreCase("null") ? null : params[6];
+				pictureUrl = params[6].equalsIgnoreCase("null") ? null : params[6];
 				m.setPictureUrl(pictureUrl);
 
-				String wikiUrl = params[7].equalsIgnoreCase("null") ? null : params[7];
+				wikiUrl = params[7].equalsIgnoreCase("null") ? null : params[7];
 				m.setWikiUrl(wikiUrl);
 
 				if ((line = br.readLine()) != null) {
@@ -193,14 +222,14 @@ public class IndexerMovie extends Indexer implements Serializable {
 				// Get actor IDs and map them to the movie ID
 				if ((line = br.readLine()) != null) {
 					params = line.split("\t");
-					ArrayList<Integer> actorIDs = new ArrayList<Integer>();
 					if (!params[0].isEmpty() && !params[0].equalsIgnoreCase("null")) {
+						actorIDs = new ArrayList<Integer>();
 						for (String actor : params) {
+							actor= actor.trim();
 							if (_actorToActorIDIndex.containsKey(actor)) {
-								Integer actorID = _actorToActorIDIndex.get(actor);
-								actorIDs.add(actorID);
+								Integer actorid = _actorToActorIDIndex.get(actor);
+								actorIDs.add(actorid);
 							}
-							// actors.add(actor);
 						}
 					}
 					_movieToActorsIndex.put(movieID, actorIDs);
@@ -208,52 +237,26 @@ public class IndexerMovie extends Indexer implements Serializable {
 
 				movieID++;
 			}
-			// writeActorsCorpus(actors);
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.err.println(e.getMessage());
 		}
 	}
 
-	private void writeActorsCorpus(HashSet<String> actors) {
-		try {
-			File fout = new File(_options._corpusPrefix + "\\actors2.txt");
-			FileOutputStream fos;
-
-			fos = new FileOutputStream(fout);
-
-			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(fos));
-			int i = 0;
-			for (String actor : actors) {
-				String op = actor + "\thttps://en.wikipedia.org/img/Pic_of_Actor" + i
-						+ "\thttps://en.wikipedia.org/wiki/Actor_" + i;
-
-				bw.write(op);
-				bw.newLine();
-				i++;
-			}
-			bw.close();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
 
 	private void buildActorToMoviesIndex() {
-
-		// Initialize a blank movie list for each actor
-		for (Integer actorID : _actorToActorIDIndex.values()) {
-			_actorToMoviesIndex.put(actorID, new ArrayList<Integer>());
-		}
-
+		ArrayList<Integer> actorIDs;
+		Integer movieID;
+		ArrayList<Integer> movieList;
+		
 		for (Entry<Integer, ArrayList<Integer>> e : _movieToActorsIndex.entrySet()) {
-			Integer movieID = e.getKey();
-			ArrayList<Integer> actorIDs = e.getValue();
-			ArrayList<Integer> movieList;
+			movieID = e.getKey();
+			actorIDs = e.getValue();
 			for (Integer actorID : actorIDs) {
 				if (_actorToMoviesIndex.containsKey(actorID)) {
 					movieList = _actorToMoviesIndex.get(actorID);
 				} else {
-					movieList = new ArrayList<Integer>();
+					movieList = new ArrayList<Integer>() ;
 				}
 				movieList.add(movieID);
 				_actorToMoviesIndex.put(actorID, movieList);
@@ -261,39 +264,42 @@ public class IndexerMovie extends Indexer implements Serializable {
 		}
 	}
 
-	private void buildActorToActorsIndex() {
+	/*private void buildActorToActorsIndex() {
+		ArrayList<Integer> movieIDs;
+		int actorID;
+		Set<String> hs = new HashSet<>();
+		
 		for (Entry<Integer, ArrayList<Integer>> e : _actorToMoviesIndex.entrySet()) {
-			Integer actorID = e.getKey();
-			ArrayList<Integer> movieIDs = e.getValue();
-			ArrayList<Integer> actorList;
-			HashMap<Integer, Integer> actorSet = new HashMap<Integer, Integer>();
-
+			actorID = e.getKey();
+			movieIDs = e.getValue();
+			Set<Integer> actorList;
+			
+			if(_actorToActorsIndex.containsKey(actorID)){
+				actorList = _actorToActorsIndex.get(actorID);
+			}
+			else{
+				actorList = new HashSet<Integer>();
+			}
+			
 			for (Integer movieID : movieIDs) {
 				if (_movieToActorsIndex.containsKey(movieID)) {
-					actorList = _movieToActorsIndex.get(movieID);
-					for (Integer actor : actorList) {
-						if (actorSet.containsKey(actor)) {
-							actorSet.put(actor, actorSet.get(actor) + 1);
-						} else {
-							actorSet.put(actor, 1);
-						}
-					}
+					ArrayList<Integer> temp = _movieToActorsIndex.get(movieID);
+					actorList.addAll(_movieToActorsIndex.get(movieID));
 				}
 			}
-
-			// removing the current actor from co-actor set
-			actorSet.remove(actorID);
-
-			_actorToActorsIndex.put(actorID, actorSet);
+			
+			actorList.remove(actorID);
+			
+			_actorToActorsIndex.put(actorID, actorList);
 		}
-	}
+	}*/
 
 	private void removeNullEntries() {
 		_movieToMovieIDIndex.remove(null);
 		_actorToActorIDIndex.remove(null);
 		_movieToActorsIndex.remove(null);
 		_actorToMoviesIndex.remove(null);
-		_actorToActorsIndex.remove(null);
+		//_actorToActorsIndex.remove(null);
 		_movieToDetailsIndex.remove(null);
 		_actorToDetailsIndex.remove(null);
 
@@ -302,134 +308,20 @@ public class IndexerMovie extends Indexer implements Serializable {
 
 	}
 
-	@Override
-	public void loadIndex() throws IOException, ClassNotFoundException {
-		String indexFile = _options._indexPrefix + "/corpus.idx";
-		System.out.println("Load index from: " + indexFile);
-
-		// read from the index file
-		ObjectInputStream reader = new ObjectInputStream(new FileInputStream(indexFile));
-		IndexerMovie loaded = (IndexerMovie) reader.readObject();
-
-		this._movieToMovieIDIndex = loaded._movieToMovieIDIndex;
-		this._actorToActorIDIndex = loaded._actorToActorIDIndex;
-		this._movieToActorsIndex = loaded._movieToActorsIndex;
-		this._actorToMoviesIndex = loaded._actorToMoviesIndex;
-		this._actorToActorsIndex = loaded._actorToActorsIndex;
-		this._movieToDetailsIndex = loaded._movieToDetailsIndex;
-		this._actorToDetailsIndex = loaded._actorToDetailsIndex;
-
-		reader.close();
-		loaded = null;
-		System.out.println(Integer.toString(_movieToMovieIDIndex.size()) + " movies loaded with "
-				+ Integer.toString(_actorToActorIDIndex.size()) + " actors.");
-
-		printIndexStats();
-		runTests();
-	}
-
 	private void printIndexStats() {
-		System.out.println();
 		System.out.println("_movieToMovieIDIndex size:\t" + this._movieToMovieIDIndex.size());
 		System.out.println("_actorToActorIDIndex size:\t" + this._actorToActorIDIndex.size());
 		System.out.println("_movieToActorsIndex size:\t" + this._movieToActorsIndex.size());
 		System.out.println("_actorToMoviesIndex size:\t" + this._actorToMoviesIndex.size());
-		System.out.println("_actorToActorsIndex size:\t" + this._actorToActorsIndex.size());
+		//System.out.println("_actorToActorsIndex size:\t" + this._actorToActorsIndex.size());
 		System.out.println("_movieToDetailsIndex size:\t" + this._movieToDetailsIndex.size());
 		System.out.println("_actorToDetailsIndex size:\t" + this._actorToDetailsIndex.size());
-		System.out.println();
-	}
-
-	private void runTests() {
-		Random r = new Random();
-		ArrayList<String> movieNames = new ArrayList<String>();
-		ArrayList<String> actorNames = new ArrayList<String>();
-		for (int i = 0; i < 5; i++) {
-			movieNames.add(_movieToMovieIDIndex.inverse().get(r.nextInt(_movieToMovieIDIndex.size())));
-			actorNames.add(_actorToActorIDIndex.inverse().get(r.nextInt(_actorToActorIDIndex.size())));
-		}
-		testAPIs(movieNames, actorNames);
-		getTopMatchesTest();
-	}
-
-	private void testAPIs(ArrayList<String> movieNames, ArrayList<String> actorNames) {
-		Random r = new Random();
-		String movieName = movieNames.get(r.nextInt(movieNames.size()));
-		String actorName = actorNames.get(r.nextInt(actorNames.size()));
-
-		// Test 1
-		Integer movieID = getMovieIdByName(movieName);
-		System.out.println("Movie ID for " + movieName + " is:\t" + movieID);
-		System.out.println("Movie Name for " + movieID + " is:\t" + getMovieNameById(movieID));
-
-		Movie m = getMovieDetails(movieID);
-		System.out.println("Movie details:\n" + m);
-
-		ArrayList<Integer> actors = getActorsByMovieName(movieName);
-		System.out.println("Actors working in the movie " + movieName + " are:\t" + actors);
-		for (Integer actorID : actors) {
-			System.out.print(getActorNameById(actorID) + "\t");
-		}
-		System.out.println();
-
-		actors = getActorsByMovieID(movieID);
-		System.out.println("Actors working in the movie " + movieID + " are:\t" + actors);
-		for (Integer actorID : actors) {
-			System.out.print(getActorNameById(actorID) + "\t");
-		}
-		System.out.println();
-		ArrayList<Integer> actorsList = new ArrayList<Integer>();
-		actorsList.addAll(actors);
-
-		// Test 2
-		System.out.println("\n");
-		Integer actorID = getActorIdByName(actorName);
-		System.out.println("Actor ID for " + actorName + " is:\t" + actorID);
-		System.out.println("Actor Name for " + actorID + " is:\t" + getActorNameById(actorID));
-
-		Actor a = getActorDetails(actorID);
-		System.out.println("Actor details:\n" + a);
-
-		System.out.println("Movies using actor ID:\t");
-		actors = new ArrayList<Integer>();
-		actors.add(actorID);
-		ArrayList<Integer> movies = getMoviesByActors(actors);
-		for (Integer mID : movies) {
-			System.out.print(getMovieNameById(mID) + "\t");
-		}
-		System.out.println();
-
-		System.out.println("Actors who worked with " + actorID + ":\t");
-		HashMap<Integer, Integer> actorSet = getActorsWhoWorkedWith(actorID);
-		for (Entry<Integer, Integer> actor : actorSet.entrySet()) {
-			System.out.print(getActorNameById(actor.getKey()) + "(" + actor.getValue() + " times)\t");
-		}
-		System.out.println();
-
-		System.out.println("Actors who worked with " + actorName + ":\t");
-		actorSet = getActorsWhoWorkedWith(actorName);
-		for (Entry<Integer, Integer> actor : actorSet.entrySet()) {
-			System.out.print(getActorNameById(actor.getKey()) + "(" + actor.getValue() + " times)\t");
-		}
-		System.out.println("\n");
-
-		Integer times = r.nextInt(1 + actorsList.size() / 5);
-		for (int i = 0; i < times; i++) {
-			actorsList.remove(r.nextInt(actorsList.size()));
-		}
-		System.out.println("Movies featuring " + actorsList + " are:\t");
-		movies = getMoviesByActors(actorsList);
-		for (Integer mID : movies) {
-			System.out.print(getMovieNameById(mID) + "\t");
-		}
-		System.out.println();
 	}
 
 	/**
 	 * Get the movie ID for the corresponding movie name
 	 * 
-	 * @param movieName
-	 *            The name of the movie
+	 * @param movieName: The name of the movie
 	 * @return Movie ID if name is found in the index, else null
 	 */
 	public Integer getMovieIdByName(String movieName) {
@@ -442,8 +334,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 	/**
 	 * Get the actor ID for the corresponding actor name
 	 * 
-	 * @param actorName
-	 *            The name of the actor
+	 * @param actorName: The name of the actor
 	 * @return Actor ID if name is found in the index, else null
 	 */
 	public Integer getActorIdByName(String actorName) {
@@ -456,8 +347,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 	/**
 	 * Get the movie name for the corresponding movie ID
 	 * 
-	 * @param movieID
-	 *            The ID of the movie
+	 * @param movieID: The ID of the movie
 	 * @return Movie ID if ID is found in the inverse index, else null
 	 */
 	public String getMovieNameById(Integer movieID) {
@@ -470,8 +360,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 	/**
 	 * Get the actor name for the corresponding actor ID
 	 * 
-	 * @param actorID
-	 *            The ID of the actor
+	 * @param actorID: The ID of the actor
 	 * @return Actor name if ID is found in the inverse index, else null
 	 */
 	public String getActorNameById(Integer actorID) {
@@ -484,8 +373,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 	/**
 	 * Gets a list of movie IDs that all the actors have worked together in
 	 * 
-	 * @param actors
-	 *            Array list of actor IDs
+	 * @param actors: Array list of actor IDs
 	 * @return Array list of movie IDs
 	 */
 	public ArrayList<Integer> getMoviesByActors(ArrayList<Integer> actors) {
@@ -529,14 +417,13 @@ public class IndexerMovie extends Indexer implements Serializable {
 	/**
 	 * Gets a list of actor IDs that have worked with the specified actor
 	 * 
-	 * @param actorName
-	 *            The name of the actor
+	 * @param actorName: The name of the actor
 	 * @return Map of actor IDs and respective counts
 	 */
-	public HashMap<Integer, Integer> getActorsWhoWorkedWith(String actorName) {
+	public Set<Integer> getActorsWhoWorkedWith(String actorName, int number) {
 		Integer actorID = getActorIdByName(actorName);
 		if (actorID != null) {
-			return getActorsWhoWorkedWith(actorID);
+			return getActorsWhoWorkedWith(actorID, number);
 		}
 		return null;
 	}
@@ -544,22 +431,76 @@ public class IndexerMovie extends Indexer implements Serializable {
 	/**
 	 * Gets a list of actor IDs that have worked with the specified actor
 	 * 
-	 * @param actorID
-	 *            The ID of the actor
+	 * @param actorID: The ID of the actor
 	 * @return Map of actor IDs and respective counts
 	 */
-	public HashMap<Integer, Integer> getActorsWhoWorkedWith(Integer actorID) {
-		if (_actorToActorsIndex.containsKey(actorID)) {
-			return _actorToActorsIndex.get(actorID);
+	public Set<Integer> getActorsWhoWorkedWith(Integer actorID, int number) {
+		HashMap<Integer, Integer> _actorToActors = new HashMap<Integer, Integer>();
+		ArrayList<Integer> movieIDList = _actorToMoviesIndex.get(actorID);
+		for(Integer movieID: movieIDList){
+			ArrayList<Integer> actorsIDList = _movieToActorsIndex.get(movieID);
+			for(Integer actorsID: actorsIDList){
+				if(actorsID != actorID){
+					if(_actorToActors.containsKey(actorsID)){
+						_actorToActors.put(actorsID, _actorToActors.get(actorsID)+1);
+					}
+					else{
+						_actorToActors.put(actorsID, 1);
+					}
+				}
+			}
 		}
-		return null;
+		// Sort the actors by the number of working together
+		_actorToActors = sortByComparator(_actorToActors, "desc");
+		
+		// Return the top "number" actors
+		Set<Integer> actorsList = new HashSet<Integer>();
+		Set<Integer> actors = _actorToActors.keySet();
+		if(number < 0){
+			return actors;
+		}
+		else{
+			int j = 0;
+			for(Integer i: actors){
+				if(j < number){
+					actorsList.add(i);
+					j++;
+				}
+				else{
+					break;
+				}
+			}
+		}
+		return actorsList;
 	}
+	
+	private static HashMap<Integer, Integer> sortByComparator(HashMap<Integer, Integer> unsortMap, String order){
+		List<Entry<Integer, Integer>> list = new ArrayList<Entry<Integer, Integer>>(unsortMap.entrySet());
+
+        // Sorting the list based on values
+        Collections.sort(list, new Comparator<Entry<Integer, Integer>>(){
+            public int compare(Entry<Integer, Integer> o1, Entry<Integer, Integer> o2){
+                if (order.equalsIgnoreCase("asc")){
+                    return o1.getValue().compareTo(o2.getValue());
+                }
+                else{
+                    return o2.getValue().compareTo(o1.getValue());
+                }
+            }
+        });
+
+        // Maintaining insertion order with the help of LinkedList
+        HashMap<Integer, Integer> sortedMap = new HashMap<Integer, Integer>();
+        for (Entry<Integer, Integer> entry : list){
+            sortedMap.put(entry.getKey(), entry.getValue());
+        }
+        return sortedMap;
+    }
 
 	/**
 	 * Gets a list of actor IDs that have worked in the movie
 	 * 
-	 * @param movieName
-	 *            The name of the movie
+	 * @param movieName: The name of the movie
 	 * @return Array list of actor IDs
 	 */
 	public ArrayList<Integer> getActorsByMovieName(String movieName) {
@@ -573,8 +514,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 	/**
 	 * Gets a list of actor IDs that have worked in the movie
 	 * 
-	 * @param movieName
-	 *            The ID of the movie
+	 * @param movieName: The ID of the movie
 	 * @return Array list of actor IDs
 	 */
 	public ArrayList<Integer> getActorsByMovieID(Integer movieID) {
@@ -587,8 +527,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 	/**
 	 * Get the details of the specified movie
 	 * 
-	 * @param movieID
-	 *            The ID of the movie
+	 * @param movieID: The ID of the movie
 	 * @return Movie object containing details of the movie
 	 */
 	public Movie getMovieDetails(Integer movieID) {
@@ -601,8 +540,7 @@ public class IndexerMovie extends Indexer implements Serializable {
 	/**
 	 * Get the details of the specified actor
 	 * 
-	 * @param actorID
-	 *            The ID of the actor
+	 * @param actorID: The ID of the actor
 	 * @return Actor object containing details of the actor
 	 */
 	public Actor getActorDetails(Integer actorID) {
@@ -611,20 +549,108 @@ public class IndexerMovie extends Indexer implements Serializable {
 		}
 		return null;
 	}
+	
+	
+	// Test API for indexer
+	public void runTests() {
+			Random r = new Random();
+			ArrayList<String> movieNames = new ArrayList<String>();
+			ArrayList<String> actorNames = new ArrayList<String>();
+			for (int i = 0; i < 5; i++) {
+				movieNames.add(_movieToMovieIDIndex.inverse().get(r.nextInt(_movieToMovieIDIndex.size())));
+				actorNames.add(_actorToActorIDIndex.inverse().get(r.nextInt(_actorToActorIDIndex.size())));
+			}
+			testAPIs(movieNames, actorNames);
+	}
+		
+	private void testAPIs(ArrayList<String> movieNames, ArrayList<String> actorNames) {
+			Random r = new Random();
+			String movieName = movieNames.get(r.nextInt(movieNames.size()));
+			String actorName = actorNames.get(r.nextInt(actorNames.size()));
 
+			// Test 1
+			Integer movieID = getMovieIdByName(movieName);
+			System.out.println("\n");
+			System.out.println("Movie ID for " + movieName + " is:\t" + movieID);
+			System.out.println("Movie Name for " + movieID + " is:\t" + getMovieNameById(movieID));
+
+			Movie m = getMovieDetails(movieID);
+			System.out.println("Movie details\n" + m);
+
+			ArrayList<Integer> actors = getActorsByMovieName(movieName);
+			System.out.println("Actors working in the movie " + movieName + " are:\t");
+			System.out.println(actors);
+			for (Integer actorID : actors) {
+				System.out.print(getActorNameById(actorID) + "\t");
+			}
+			System.out.println();
+
+			actors = getActorsByMovieID(movieID);
+			System.out.println("Actors working in the movie " + movieID + " are:\t");
+			System.out.println(actors);
+			for (Integer actorID : actors) {
+				System.out.print(getActorNameById(actorID) + "\t");
+			}
+			System.out.println();
+			
+			ArrayList<Integer> actorsList = new ArrayList<Integer>();
+			actorsList.addAll(actors);
+			
+			// Test 2
+			System.out.println("\n");
+			Integer actorID = getActorIdByName(actorName);
+			System.out.println("Actor ID for " + actorName + " is:\t" + actorID);
+			System.out.println("Actor Name for " + actorID + " is:\t" + getActorNameById(actorID));
+
+			Actor a = getActorDetails(actorID);
+			System.out.println("Actor details:\n" + a);
+
+			System.out.print("Movies using actor ID:\t");
+			actors = new ArrayList<Integer>();
+			actors.add(actorID);
+			ArrayList<Integer> movies = getMoviesByActors(actors);
+			for (Integer mID : movies) {
+				System.out.print(getMovieNameById(mID) + "\t");
+			}
+			System.out.println();
+			System.out.println("\n");
+			
+			Integer times = r.nextInt(actorsList.size());
+			for (int i = 0; i < times; i++) {
+				actorsList.remove(r.nextInt(actorsList.size()));
+			}
+			System.out.println("Movies featuring " + actorsList + " are:\t");
+			movies = getMoviesByActors(actorsList);
+			for (Integer mID : movies) {
+				System.out.print(getMovieNameById(mID) + "\t");
+			}
+			System.out.println();
+			
+			//Test 3
+			System.out.println("Actors who worked with " + actorID + ":\t");
+			Set<Integer> actorList = getActorsWhoWorkedWith(actorID, -1);
+			for (Integer actor : actorList) {
+				System.out.print(getActorNameById(actor) + "\t");
+			}
+			System.out.println();
+			
+			System.out.println("Actors who worked with " + actorName + ":\t");
+			actorList = getActorsWhoWorkedWith(actorName, -1);
+			for (Integer actor : actorList) {
+				System.out.print(getActorNameById(actor) + "\t" );
+			}
+			System.out.println("\n");	
+	}
+	
+	
 	/**
 	 * Gets the top matches by similarity for the given query.
 	 * 
-	 * @param query
-	 *            The actor or movie name
-	 * @param maxResults
-	 *            The maximum number of results required
-	 * @param threshold
-	 *            The minimum similarity threshold
-	 * @param type
-	 *            Movie or Actor
-	 * @return Array list of entries containing Actor/Movie ID and similarity
-	 *         score
+	 * @param query: The actor or movie name
+	 * @param maxResults: The maximum number of results required
+	 * @param threshold: The minimum similarity threshold
+	 * @param type: Movie or Actor
+	 * @return Array list of entries containing Actor/Movie ID and similarity score
 	 */
 	public ArrayList<Entry<Integer, Double>> getTopMatches(String query, Integer maxResults, Double threshold,
 			String type) {
@@ -698,10 +724,8 @@ public class IndexerMovie extends Indexer implements Serializable {
 	/**
 	 * Returns the similarity score for the given 2 terms.
 	 * 
-	 * @param term1
-	 *            The first term
-	 * @param term2
-	 *            The second term
+	 * @param term1: The first term
+	 * @param term2: The second term
 	 * @return The similarity score
 	 */
 	public double getSimilarity(String term1, String term2) {
@@ -749,36 +773,6 @@ public class IndexerMovie extends Indexer implements Serializable {
 			System.out.println(String.format("%.10f", e.getValue()) + "\t" + getMovieNameById(e.getKey()));
 		}
 		System.out.println();
-	}
-
-	@Override
-	public Document getDoc(int docid) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public Document nextDoc(Query query, int docid) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public int corpusDocFrequencyByTerm(String term) {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	@Override
-	public int corpusTermFrequency(String term) {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-
-	@Override
-	public int documentTermFrequency(String term, int docid) {
-		// TODO Auto-generated method stub
-		return 0;
 	}
 }
 
